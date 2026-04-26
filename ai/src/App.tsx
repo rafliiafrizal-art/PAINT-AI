@@ -1,8 +1,12 @@
-import AiPaintSpecialist from "./chat/chat";
+import { Store } from "lucide-react";
+import { useState } from "react";
+import AiPaintSpecialist from "./component/chat"; // SESUAIKAN PATH
 
 function App() {
   return (
-    <AiPaintSpecialist />
+    <div className="App">
+      <AiPaintSpecialist />
+    </div>
   )
 }
 

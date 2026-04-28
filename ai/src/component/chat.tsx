@@ -22,7 +22,14 @@ interface ChatSession {
   messages: Message[];
 }
 
-const AiPaintSpecialist: React.FC = () => {
+interface AiPaintProps {
+  currentUser: {
+    name: string;
+    // tambahkan data lain jika perlu, misal email: string;
+  } | null;
+}
+
+const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -30,7 +37,6 @@ const AiPaintSpecialist: React.FC = () => {
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [expandedMessages, setExpandedMessages] = useState<Record<number, boolean>>({});
   const [isSettingOpen,  setIsSettingOpen] = useState(false);
-  const [lang, setLang] = useState<'id' | 'en'>('id');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -181,10 +187,11 @@ const AiPaintSpecialist: React.FC = () => {
           </button>
           <div className="flex items-center gap-4 group cursor-pointer text-right">
             <div className="hidden sm:block text-xs">
-              <p className="font-black text-[#8b5a2b] uppercase text-[10px]">Rafli Specialist</p>
+              <p className="font-black text-[#8b5a2b] uppercase text-[10px]">
+                {currentUser ? currentUser.name : "Guest"}</p>
               <p className="text-[9px] text-green-500 font-bold uppercase tracking-widest">Verified R&D</p>
             </div>
-            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Rafli" alt="Profile" className="w-10 h-10 rounded-xl border-2 border-[#8b5a2b]/50 shadow-lg transition-all" />
+            <img src={`https://api.dicebear.com/8.x/adventurer/svg?seed=${currentUser ? currentUser.name : 'Rafli'}&backgroundColor=b07d4f`} alt="Profile" className="w-10 h-10 rounded-xl border-2 border-[#8b5a2b]/50 shadow-lg transition-all" />
           </div>
         </header>
 

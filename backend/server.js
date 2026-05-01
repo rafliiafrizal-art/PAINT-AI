@@ -1,17 +1,18 @@
 const express = require('express');
-const { Pool } = require ('pg');
+const { Pool } = require('pg');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const dotenv = require('dotenv');
+const Groq = require('groq-sdk').default;
 
 dotenv.config();
+console.log('GROQ KEY:', process.env.GROQ_API_KEY ? 'ADA ✓' : 'TIDAK ADA ✗');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-//Konfigurasi Database
-const pool = new Pool ({
+const pool = new Pool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT),
@@ -19,28 +20,37 @@ const pool = new Pool ({
     database: process.env.DB_NAME
 });
 
-//1.EndPoint SIGN UP (Pendaftaran)
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+const PAINT_SYSTEM_PROMPT = `Kamu adalah AI Paint Specialist — konsultan cat profesional yang ahli dalam:
+- Rekomendasi warna cat interior dan eksterior
+- Pemilihan jenis cat (tembok, kayu, besi, waterproof, anti-jamur, dll)
+- Estimasi kebutuhan cat berdasarkan luas ruangan (1 liter cat ≈ 10-12 m², 2 lapis)
+- Tips aplikasi cat yang benar (persiapan dinding, primer, teknik pengecatan)
+- Kombinasi warna yang harmonis berdasarkan color wheel
+- Perbandingan merek cat: Dulux, Nippon Paint, Jotun, Mowilex, Avitex, dll
+- Penanganan masalah cat: mengelupas, berjamur, tidak merata
+
+Aturan menjawab:
+1. Jawab dalam Bahasa Indonesia yang ramah dan mudah dipahami
+2. Jika user menyebut luas ruangan, HITUNG kebutuhan cat secara otomatis
+3. Selalu berikan rekomendasi produk spesifik beserta kisaran harga
+4. Jika pertanyaan tidak terkait cat, arahkan kembali dengan sopan`;
+
+// 1. Endpoint SIGN UP
 app.post('/api/signup', async (req, res) => {
     const { name, email, password } = req.body;
-
     try {
-        //Enkripsi password sebelum disimpan
         const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-        //Simpan ke database
         const query = 'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email';
-        const values = [name, email, hashedPassword];
-
-        const result = await pool.query(query, values);
-
+        const result = await pool.query(query, [name, email, hashedPassword]);
         res.status(201).json({
             message: "User berhasil didaftarkan",
             user: result.rows[0]
         });
     } catch (err) {
-        // Cek jika error disebabkan karena nama/email sudah ada (Unique Constraint)
-        if(err.code === '23505') {
+        if (err.code === '23505') {
             res.status(400).json({ message: "Nama atau email sudah terdaftar" });
         } else {
             console.error(err);
@@ -51,33 +61,20 @@ app.post('/api/signup', async (req, res) => {
 
 // 2. Endpoint LOGIN
 app.post('/api/login', async (req, res) => {
-    const { name, password } =  req.body;
-
+    const { name, password } = req.body;
     try {
-        // Cari user berdasarkan nama
         const userQuery = await pool.query('SELECT * FROM users WHERE name = $1', [name]);
-
-        if(userQuery.rows.length === 0) {
-            return res.status(400).json({message: "User tidak ditemukan!" });
+        if (userQuery.rows.length === 0) {
+            return res.status(400).json({ message: "User tidak ditemukan!" });
         }
-
         const user = userQuery.rows[0];
-
-        //Bandingkan password yang di ketik dengan password yang di hash di db
         const isMatch = await bcrypt.compare(password, user.password);
-
-        if(!isMatch) {
+        if (!isMatch) {
             return res.status(400).json({ message: "Password salah!" });
         }
-
-        // Jika berhasil, kirim data user ke frontend
         res.json({
             message: "Login Berhasil",
-            user: {
-                id: user.id,
-                name: user.name,
-                email: user.email
-            }
+            user: { id: user.id, name: user.name, email: user.email }
         });
     } catch (err) {
         console.error(err);
@@ -85,7 +82,78 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-const PORT_SERVER =  process.env.PORT || 5000;
+// 3. Endpoint AI Paint Specialist ← SUDAH DIFIX
+app.post('/api/ai-paint', async (req, res) => {
+    const { message, userId, conversationHistory = [] } = req.body;
+
+    if (!message || message.trim() === '') {
+        return res.status(400).json({ message: "Pesan tidak boleh kosong" });
+    }
+
+    try {
+        const completion = await groq.chat.completions.create({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+                { role: 'system', content: PAINT_SYSTEM_PROMPT },
+                ...conversationHistory.slice(-10).map(m => ({
+                    role: m.role,
+                    content: m.content
+                })),
+                { role: 'user', content: message }
+            ],
+            max_tokens: 1024,
+            temperature: 0.7
+        });
+
+        const aiResponse = completion.choices[0].message.content;
+
+        if (userId) {
+            await pool.query(
+                `INSERT INTO chat_history (user_id, user_message, ai_response)
+                 VALUES ($1, $2, $3)`,
+                [userId, message, aiResponse]
+            );
+        }
+
+        res.json({ success: true, response: aiResponse });
+
+    } catch (err) {
+        console.error('=== ERROR AI PAINT ===');
+        console.error('Message:', err.message);
+        console.error('Status:', err.status);
+
+        if (err.status === 401) {
+            return res.status(500).json({ message: "API Key Groq tidak valid" });
+        }
+        if (err.status === 429) {
+            return res.status(429).json({ message: "Terlalu banyak permintaan, coba lagi sebentar" });
+        }
+
+        res.status(500).json({ message: `Error: ${err.message}` });
+    }
+});
+
+// 4. Endpoint Riwayat Chat
+app.get('/api/ai-paint/history/:userId', async (req, res) => {
+    const { userId } = req.params;
+    const limit = parseInt(req.query.limit) || 20;
+    try {
+        const result = await pool.query(
+            `SELECT id, user_message, ai_response, created_at
+             FROM chat_history
+             WHERE user_id = $1
+             ORDER BY created_at DESC
+             LIMIT $2`,
+            [userId, limit]
+        );
+        res.json({ success: true, history: result.rows });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Gagal mengambil riwayat chat" });
+    }
+});
+
+const PORT_SERVER = process.env.PORT || 5000;
 app.listen(PORT_SERVER, () => {
     console.log(`Server R&D berjalan di http://localhost:${PORT_SERVER}`);
 });

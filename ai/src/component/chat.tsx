@@ -25,7 +25,7 @@ interface ChatSession {
 interface AiPaintProps {
   currentUser: {
     name: string;
-    id?: number; // ← TAMBAHAN: untuk kirim userId ke backend
+    id?: number;
   } | null;
 }
 
@@ -43,13 +43,28 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
     show: false,
     id: null
   });
-
-  // ── TAMBAHAN: state untuk loading AI ──────────────────────────────────
   const [isAiLoading, setIsAiLoading] = useState(false);
-  // ──────────────────────────────────────────────────────────────────────
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── FIX BUG 2: Pantau seluruh object currentUser agar load ulang saat login ──
+  useEffect(() => {
+    const loadHistoryFromDB = async () => {
+      if (!currentUser?.id) return;
+      try {
+        const res = await fetch(`/api/chat-sessions/${currentUser.id}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.sessions)) {
+          setChatHistory(data.sessions);
+        }
+      } catch {
+        // Gagal load history, tetap lanjut tanpa history
+      }
+    };
+    loadHistoryFromDB();
+  }, [currentUser]); // ← pantau seluruh object, bukan hanya id
+  // ─────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -72,20 +87,16 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // ── MODIFIKASI: handleSend sekarang memanggil backend ─────────────────
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isAiLoading) return;
 
-    // 1. Tampilkan pesan user langsung ke UI
     const userMsg: Message = { id: Date.now(), role: 'user', content: text };
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     setInput('');
     setIsAiLoading(true);
 
-    // 2. Siapkan conversation history untuk dikirim ke backend
-    //    Format: hanya role + content, tanpa id (tidak dibutuhkan Groq)
     const conversationHistory = messages.map(m => ({
       role: m.role,
       content: m.content
@@ -98,7 +109,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
         body: JSON.stringify({
           message: text,
           userId: currentUser?.id ?? null,
-          conversationHistory // kirim riwayat sebelum pesan baru
+          conversationHistory
         })
       });
 
@@ -112,7 +123,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
         };
         setMessages(prev => [...prev, aiMsg]);
       } else {
-        // Tampilkan error dari backend sebagai pesan AI
         const errMsg: Message = {
           id: Date.now() + 1,
           role: 'assistant',
@@ -121,7 +131,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
         setMessages(prev => [...prev, errMsg]);
       }
     } catch {
-      // Tampilkan error koneksi sebagai pesan AI
       const errMsg: Message = {
         id: Date.now() + 1,
         role: 'assistant',
@@ -132,7 +141,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
       setIsAiLoading(false);
     }
   };
-  // ──────────────────────────────────────────────────────────────────────
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -141,28 +149,99 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
     }
   };
 
-  const startNewChat = () => {
+  // ── FIX BUG 1: ID sepenuhnya dari database, bukan Date.now() ──────────
+  const startNewChat = async () => {
     if (messages.length > 0) {
       const firstUserMsg = messages.find(m => m.role === 'user')?.content || "Percakapan Baru";
-      const newSession: ChatSession = {
-        id: activeChatId || Date.now(),
-        title: firstUserMsg.substring(0, 30),
-        messages: [...messages]
-      };
-      setChatHistory(prev => [newSession, ...prev.filter(s => s.id !== newSession.id)]);
+      const title = firstUserMsg.substring(0, 30);
+      const currentMessages = [...messages];
+
+      if (currentUser?.id) {
+        try {
+          if (activeChatId) {
+            // UPDATE session yang sudah ada di database
+            const res = await fetch(`/api/chat-sessions/${activeChatId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: currentUser.id,
+                title,
+                messages: currentMessages
+              })
+            });
+            const data = await res.json();
+            if (data.success) {
+              setChatHistory(prev => prev.map(s =>
+                s.id === activeChatId
+                  ? { ...s, title, messages: currentMessages }
+                  : s
+              ));
+            }
+          } else {
+            // INSERT session baru — ID dari database (SERIAL), bukan Date.now()
+            const res = await fetch('/api/chat-sessions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: currentUser.id,
+                title,
+                messages: currentMessages
+              })
+            });
+            const data = await res.json();
+            if (data.success && data.session) {
+              const savedSession: ChatSession = {
+                id: data.session.id,       // ← ID asli dari database
+                title: data.session.title,
+                messages: currentMessages
+              };
+              setChatHistory(prev => [savedSession, ...prev]);
+            }
+          }
+        } catch {
+          // Fallback: simpan sementara di state lokal
+          const fallbackSession: ChatSession = {
+            id: Date.now(),
+            title,
+            messages: currentMessages
+          };
+          setChatHistory(prev => [fallbackSession, ...prev]);
+        }
+      } else {
+        // User tidak login, simpan di state lokal saja
+        const localSession: ChatSession = {
+          id: Date.now(),
+          title,
+          messages: currentMessages
+        };
+        setChatHistory(prev => [localSession, ...prev]);
+      }
     }
+
     setMessages([]);
     setActiveChatId(null);
     setInput('');
   };
+  // ─────────────────────────────────────────────────────────────────────
 
   const loadChat = (session: ChatSession) => {
     setMessages(session.messages);
     setActiveChatId(session.id);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (showDeleteModal.id) {
+      if (currentUser?.id) {
+        try {
+          await fetch(`/api/chat-sessions/${showDeleteModal.id}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: currentUser.id })
+          });
+        } catch {
+          // Tetap hapus dari state lokal meski DB gagal
+        }
+      }
       setChatHistory(prev => prev.filter(chat => chat.id !== showDeleteModal.id));
       if (activeChatId === showDeleteModal.id) {
         setMessages([]);
@@ -172,7 +251,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
     setShowDeleteModal({ show: false, id: null });
   };
 
-  // ── TAMBAHAN: Komponen animasi loading dots ───────────────────────────
   const LoadingBubble = () => (
     <div className="flex w-full justify-start animate-in slide-in-from-bottom-2">
       <div className="flex gap-4 max-w-[85%] md:max-w-[80%]">
@@ -202,14 +280,31 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
       </div>
     </div>
   );
-  // ──────────────────────────────────────────────────────────────────────
+
+  const scrollbarStyles = theme === 'dark'
+    ? `
+      .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+      .custom-scrollbar::-webkit-scrollbar-track { background: #14110f; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background: #8b5a2b55; border-radius: 999px; }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #8b5a2b99; }
+      * { scrollbar-width: thin; scrollbar-color: #8b5a2b55 #14110f; }
+    `
+    : `
+      .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+      .custom-scrollbar::-webkit-scrollbar-track { background: #f7f3f0; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background: #8b5a2b55; border-radius: 999px; }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #8b5a2b99; }
+      * { scrollbar-width: thin; scrollbar-color: #8b5a2b55 #f7f3f0; }
+    `;
 
   return (
     <div className={`flex h-screen font-sans selection:bg-[#8b5a2b]/40 overflow-hidden text-sm transition-colors duration-500 ${
       theme === 'dark' ? 'bg-[#1a1614] text-[#dcd7d4]' : 'bg-[#fdfcfb] text-[#4a3a2e]'
     }`}>
 
-      {/* ── Sidebar (TIDAK DIUBAH) ─────────────────────────────────────── */}
+      <style>{scrollbarStyles}</style>
+
+      {/* ── Sidebar ─────────────────────────────────────────────────────── */}
       <aside className={`relative transition-all duration-300 ease-in-out border-[#8b5a2b]/20 flex flex-col ${
         theme === 'dark' ? 'bg-[#14110f]' : 'bg-[#f7f3f0]'
       } ${isSidebarOpen ? 'w-72 border-r' : 'w-0 border-none overflow-hidden'}`}>
@@ -267,7 +362,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
         theme === 'dark' ? 'bg-[#1a1614]' : 'bg-[#fdfcfb]'
       }`}>
 
-        {/* Header (TIDAK DIUBAH) */}
         <header className={`h-16 flex items-center justify-between px-6 backdrop-blur-md sticky top-0 z-30 transition-colors ${
           theme === 'dark' ? 'bg-[#1a1614]/80' : 'bg-white/80'
         }`}>
@@ -289,11 +383,9 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
           </div>
         </header>
 
-        {/* ── Area pesan ──────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto custom-scrollbar relative px-4">
           {messages.length === 0 && !isAiLoading ? (
 
-            // Welcome screen (TIDAK DIUBAH)
             <div className="h-full flex flex-col items-center justify-center animate-in fade-in zoom-in duration-700">
               <h2 className={`text-5xl font-black mb-8 tracking-tighter text-center transition-colors ${
                 theme === 'dark' ? 'text-white' : 'text-[#4a3a2e]'
@@ -313,7 +405,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
                       theme === 'dark' ? 'text-white' : 'text-[#4a3a2e]'
                     }`}
                   />
-                  {/* ── MODIFIKASI: Tombol disabled saat loading ── */}
                   <button
                     onClick={handleSend}
                     disabled={isAiLoading || !input.trim()}
@@ -327,7 +418,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
 
           ) : (
 
-            // Chat messages
             <div className="py-8 md:py-12 space-y-10 max-w-5xl mx-auto w-full">
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2`}>
@@ -374,7 +464,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
                 </div>
               ))}
 
-              {/* ── TAMBAHAN: Animasi loading dots saat AI sedang menjawab ── */}
               {isAiLoading && <LoadingBubble />}
 
               <div ref={chatEndRef} className="h-32" />
@@ -382,7 +471,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
           )}
         </div>
 
-        {/* ── Input bawah — tampil setelah ada pesan (TIDAK DIUBAH kecuali disabled) ── */}
         {(messages.length > 0 || isAiLoading) && (
           <div className={`px-6 pb-10 pt-4 bg-gradient-to-t z-40 transition-colors ${
             theme === 'dark' ? 'from-[#1a1614] via-[#1a1614]' : 'from-[#fdfcfb] via-[#fdfcfb]'
@@ -404,7 +492,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
                     theme === 'dark' ? 'text-white' : 'text-[#4a3a2e]'
                   }`}
                 />
-                {/* ── MODIFIKASI: Ikon berubah saat loading ── */}
                 <button
                   onClick={handleSend}
                   disabled={isAiLoading || !input.trim()}
@@ -420,7 +507,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
           </div>
         )}
 
-        {/* Delete modal (TIDAK DIUBAH) */}
         {showDeleteModal.show && (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className={`p-8 rounded-[32px] max-w-sm w-full shadow-2xl text-center border animate-in zoom-in duration-300 ${

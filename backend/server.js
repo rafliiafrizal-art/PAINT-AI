@@ -82,7 +82,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// 3. Endpoint AI Paint Specialist ← SUDAH DIFIX
+// 3. Endpoint AI Paint Specialist
 app.post('/api/ai-paint', async (req, res) => {
     const { message, userId, conversationHistory = [] } = req.body;
 
@@ -133,7 +133,7 @@ app.post('/api/ai-paint', async (req, res) => {
     }
 });
 
-// 4. Endpoint Riwayat Chat
+// 4. Endpoint Riwayat Chat (tetap dipertahankan)
 app.get('/api/ai-paint/history/:userId', async (req, res) => {
     const { userId } = req.params;
     const limit = parseInt(req.query.limit) || 20;
@@ -152,6 +152,111 @@ app.get('/api/ai-paint/history/:userId', async (req, res) => {
         res.status(500).json({ message: "Gagal mengambil riwayat chat" });
     }
 });
+
+// ── Endpoint Chat Sessions ────────────────────────────────────────────────────
+
+// 5. INSERT session baru (dipanggil saat klik "Percakapan Baru" — percakapan baru)
+app.post('/api/chat-sessions', async (req, res) => {
+    const { userId, title, messages } = req.body;
+
+    if (!userId || !title || !messages) {
+        return res.status(400).json({ message: "Data tidak lengkap" });
+    }
+
+    try {
+        // Selalu INSERT baru — ID dari database (SERIAL), bukan dari frontend
+        const result = await pool.query(
+            `INSERT INTO chat_sessions (user_id, title, messages)
+             VALUES ($1, $2, $3)
+             RETURNING id, title, messages, created_at`,
+            [userId, title, JSON.stringify(messages)]
+        );
+
+        res.json({ success: true, session: result.rows[0] });
+    } catch (err) {
+        console.error('=== ERROR SIMPAN SESSION ===', err.message);
+        res.status(500).json({ message: "Gagal menyimpan sesi percakapan" });
+    }
+});
+
+// 6. UPDATE session yang sudah ada (dipanggil saat klik "Percakapan Baru" — percakapan lanjutan)
+app.put('/api/chat-sessions/:sessionId', async (req, res) => {
+    const { sessionId } = req.params;
+    const { userId, title, messages } = req.body;
+
+    if (!userId || !title || !messages) {
+        return res.status(400).json({ message: "Data tidak lengkap" });
+    }
+
+    try {
+        const result = await pool.query(
+            `UPDATE chat_sessions
+             SET title = $1, messages = $2, created_at = CURRENT_TIMESTAMP
+             WHERE id = $3 AND user_id = $4
+             RETURNING id, title, messages, created_at`,
+            [title, JSON.stringify(messages), sessionId, userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Sesi tidak ditemukan" });
+        }
+
+        res.json({ success: true, session: result.rows[0] });
+    } catch (err) {
+        console.error('=== ERROR UPDATE SESSION ===', err.message);
+        res.status(500).json({ message: "Gagal mengupdate sesi percakapan" });
+    }
+});
+
+// 7. Ambil semua chat sessions milik user (tanpa batas maksimal)
+app.get('/api/chat-sessions/:userId', async (req, res) => {
+    const { userId } = req.params;
+
+    try {
+        const result = await pool.query(
+            `SELECT id, title, messages, created_at
+             FROM chat_sessions
+             WHERE user_id = $1
+             ORDER BY created_at DESC`,
+            [userId]
+        );
+
+        const sessions = result.rows.map(row => ({
+            id: row.id,
+            title: row.title,
+            messages: typeof row.messages === 'string'
+                ? JSON.parse(row.messages)
+                : row.messages
+        }));
+
+        res.json({ success: true, sessions });
+    } catch (err) {
+        console.error('=== ERROR AMBIL SESSIONS ===', err.message);
+        res.status(500).json({ message: "Gagal mengambil sesi percakapan" });
+    }
+});
+
+// 8. Hapus chat session dari database
+app.delete('/api/chat-sessions/:sessionId', async (req, res) => {
+    const { sessionId } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+        return res.status(400).json({ message: "userId diperlukan" });
+    }
+
+    try {
+        await pool.query(
+            `DELETE FROM chat_sessions WHERE id = $1 AND user_id = $2`,
+            [sessionId, userId]
+        );
+        res.json({ success: true, message: "Sesi berhasil dihapus" });
+    } catch (err) {
+        console.error('=== ERROR HAPUS SESSION ===', err.message);
+        res.status(500).json({ message: "Gagal menghapus sesi percakapan" });
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 const PORT_SERVER = process.env.PORT || 5000;
 app.listen(PORT_SERVER, () => {

@@ -37,7 +37,7 @@ Aturan menjawab:
 3. Selalu berikan rekomendasi produk spesifik beserta kisaran harga
 4. Jika pertanyaan tidak terkait cat, arahkan kembali dengan sopan`;
 
-// 1. Endpoint SIGN UP
+// 1. Endpoint SIGN UP.
 app.post('/api/signup', async (req, res) => {
     const { name, email, password } = req.body;
     try {
@@ -59,7 +59,7 @@ app.post('/api/signup', async (req, res) => {
     }
 });
 
-// 2. Endpoint LOGIN
+// 2. Endpoint LOGIN.
 app.post('/api/login', async (req, res) => {
     const { name, password } = req.body;
     try {

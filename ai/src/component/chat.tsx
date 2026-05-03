@@ -48,7 +48,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ── FIX BUG 2: Pantau seluruh object currentUser agar load ulang saat login ──
   useEffect(() => {
     const loadHistoryFromDB = async () => {
       if (!currentUser?.id) return;
@@ -63,8 +62,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
       }
     };
     loadHistoryFromDB();
-  }, [currentUser]); // ← pantau seluruh object, bukan hanya id
-  // ─────────────────────────────────────────────────────────────────────
+  }, [currentUser]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -149,7 +147,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
     }
   };
 
-  // ── FIX BUG 1: ID sepenuhnya dari database, bukan Date.now() ──────────
   const startNewChat = async () => {
     if (messages.length > 0) {
       const firstUserMsg = messages.find(m => m.role === 'user')?.content || "Percakapan Baru";
@@ -159,7 +156,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
       if (currentUser?.id) {
         try {
           if (activeChatId) {
-            // UPDATE session yang sudah ada di database
             const res = await fetch(`/api/chat-sessions/${activeChatId}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
@@ -178,7 +174,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
               ));
             }
           } else {
-            // INSERT session baru — ID dari database (SERIAL), bukan Date.now()
             const res = await fetch('/api/chat-sessions', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -191,7 +186,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
             const data = await res.json();
             if (data.success && data.session) {
               const savedSession: ChatSession = {
-                id: data.session.id,       // ← ID asli dari database
+                id: data.session.id,
                 title: data.session.title,
                 messages: currentMessages
               };
@@ -199,7 +194,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
             }
           }
         } catch {
-          // Fallback: simpan sementara di state lokal
           const fallbackSession: ChatSession = {
             id: Date.now(),
             title,
@@ -208,7 +202,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
           setChatHistory(prev => [fallbackSession, ...prev]);
         }
       } else {
-        // User tidak login, simpan di state lokal saja
         const localSession: ChatSession = {
           id: Date.now(),
           title,
@@ -222,7 +215,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
     setActiveChatId(null);
     setInput('');
   };
-  // ─────────────────────────────────────────────────────────────────────
 
   const loadChat = (session: ChatSession) => {
     setMessages(session.messages);
@@ -250,6 +242,24 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
     }
     setShowDeleteModal({ show: false, id: null });
   };
+
+  // ── TAMBAHAN FITUR 1: Hapus semua history — UI + database ─────────────
+  const handleClearAllHistory = async () => {
+    if (currentUser?.id) {
+      try {
+        await fetch(`/api/chat-sessions/clear/${currentUser.id}`, {
+          method: 'DELETE'
+        });
+      } catch {
+        // Tetap hapus dari state lokal meski DB gagal
+      }
+    }
+    // Hapus dari UI
+    setChatHistory([]);
+    setMessages([]);
+    setActiveChatId(null);
+  };
+  // ──────────────────────────────────────────────────────────────────────
 
   const LoadingBubble = () => (
     <div className="flex w-full justify-start animate-in slide-in-from-bottom-2">
@@ -347,12 +357,14 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
             </button>
           </div>
 
+          {/* ── TAMBAHAN: prop onClearAllHistory diteruskan ke SettingsModal ── */}
           <SettingsModal
             isOpen={isSettingOpen}
             onClose={() => setIsSettingOpen(false)}
             theme={theme}
             setTheme={setTheme}
             chatHistory={chatHistory}
+            onClearAllHistory={handleClearAllHistory}
           />
         </div>
       </aside>

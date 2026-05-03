@@ -155,7 +155,7 @@ app.get('/api/ai-paint/history/:userId', async (req, res) => {
 
 // ── Endpoint Chat Sessions ────────────────────────────────────────────────────
 
-// 5. INSERT session baru (dipanggil saat klik "Percakapan Baru" — percakapan baru)
+// 5. INSERT session baru
 app.post('/api/chat-sessions', async (req, res) => {
     const { userId, title, messages } = req.body;
 
@@ -164,14 +164,12 @@ app.post('/api/chat-sessions', async (req, res) => {
     }
 
     try {
-        // Selalu INSERT baru — ID dari database (SERIAL), bukan dari frontend
         const result = await pool.query(
             `INSERT INTO chat_sessions (user_id, title, messages)
              VALUES ($1, $2, $3)
              RETURNING id, title, messages, created_at`,
             [userId, title, JSON.stringify(messages)]
         );
-
         res.json({ success: true, session: result.rows[0] });
     } catch (err) {
         console.error('=== ERROR SIMPAN SESSION ===', err.message);
@@ -179,7 +177,7 @@ app.post('/api/chat-sessions', async (req, res) => {
     }
 });
 
-// 6. UPDATE session yang sudah ada (dipanggil saat klik "Percakapan Baru" — percakapan lanjutan)
+// 6. UPDATE session yang sudah ada
 app.put('/api/chat-sessions/:sessionId', async (req, res) => {
     const { sessionId } = req.params;
     const { userId, title, messages } = req.body;
@@ -208,7 +206,7 @@ app.put('/api/chat-sessions/:sessionId', async (req, res) => {
     }
 });
 
-// 7. Ambil semua chat sessions milik user (tanpa batas maksimal)
+// 7. Ambil semua chat sessions milik user
 app.get('/api/chat-sessions/:userId', async (req, res) => {
     const { userId } = req.params;
 
@@ -236,7 +234,7 @@ app.get('/api/chat-sessions/:userId', async (req, res) => {
     }
 });
 
-// 8. Hapus chat session dari database
+// 8. Hapus satu chat session
 app.delete('/api/chat-sessions/:sessionId', async (req, res) => {
     const { sessionId } = req.params;
     const { userId } = req.body;
@@ -254,6 +252,26 @@ app.delete('/api/chat-sessions/:sessionId', async (req, res) => {
     } catch (err) {
         console.error('=== ERROR HAPUS SESSION ===', err.message);
         res.status(500).json({ message: "Gagal menghapus sesi percakapan" });
+    }
+});
+
+// ── TAMBAHAN FITUR 1: Hapus SEMUA chat sessions milik satu user ──────────────
+// Dipanggil dari tombol "Hapus Semua History Log" di Setelan → Umum
+app.delete('/api/chat-sessions/clear/:userId', async (req, res) => {
+    const { userId } = req.params;
+
+    try {
+        const result = await pool.query(
+            `DELETE FROM chat_sessions WHERE user_id = $1`,
+            [userId]
+        );
+        res.json({
+            success: true,
+            message: `Berhasil menghapus ${result.rowCount} sesi percakapan`
+        });
+    } catch (err) {
+        console.error('=== ERROR HAPUS SEMUA SESSION ===', err.message);
+        res.status(500).json({ message: "Gagal menghapus semua sesi percakapan" });
     }
 });
 // ─────────────────────────────────────────────────────────────────────────────

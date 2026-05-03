@@ -35,9 +35,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   // Ganti 3 nilai di bawah ini dengan nilai dari akun EmailJS Anda
   // Panduan: https://www.emailjs.com → Account → General → Public Key
   // ══════════════════════════════════════════════════════════════════
-  const EMAILJS_SERVICE_ID  = 'service_o72s1ik';   // ← ganti
-  const EMAILJS_TEMPLATE_ID = 'template_zntn7ns';  // ← ganti
-  const EMAILJS_PUBLIC_KEY  = 'gMk6ExPIU0OFeMs9f';   // ← ganti
+  const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+  const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+  const EMAILJS_PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
   const handleSendHelp = async () => {
     if (!helpMessage.trim()) return;
@@ -72,9 +72,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   // FITUR 2 — Web3.Storage (IPFS / Blockchain gratis)
   // Daftar di https://web3.storage → Create API Token → tempel di bawah
   // ══════════════════════════════════════════════════════════════════
- const PINATA_API_KEY    = '843cddf91dd7717a1cc1';    // ← ganti
- const PINATA_API_SECRET = 'e6274354dbfa020702e87aca63f0b71bcd50dfb792435bf24b4c4220c87572a7'; // ← ganti
-
+ const PINATA_API_KEY      = import.meta.env.VITE_PINATA_API_KEY;
+ const PINATA_API_SECRET   = import.meta.env.VITE_PINATA_API_SECRET;
+ 
 const handleBlockchainSync = async () => {
   const chatToSync = chatHistory.find(c => c.id === selectedChatBlockchain);
   if (!chatToSync) return;

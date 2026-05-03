@@ -29,7 +29,7 @@ const Login: React.FC<LoginProps> = ({ onSwitch, onLoginSuccess }) => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#1a1614] text-[#dcd7d4]">
-      <form onSubmit={handleLogin} className="bg-[#14110f] p-8 rounded-[32px] border border-[#8b5a2b]/20 w-96 shadow-2xl">
+      <form onSubmit={handleLogin} className="bg-[#14110f] p-8 rounded-4xl border border-[#8b5a2b]/20 w-96 shadow-2xl">
         <h2 className="text-3xl font-black mb-6 text-[#8b5a2b] tracking-tighter">LOGIN</h2>
         {error && <p className="text-red-500 text-xs mb-4 font-bold uppercase">{error}</p>}
         

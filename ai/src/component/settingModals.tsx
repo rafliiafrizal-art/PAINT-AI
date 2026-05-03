@@ -124,8 +124,8 @@ const handleBlockchainSync = async () => {
   ];
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300 text-sm">
-      <div className={`border border-[#8b5a2b]/30 rounded-[32px] w-full max-w-4xl h-[600px] flex overflow-hidden shadow-2xl transition-all duration-500 ${
+    <div className="fixed inset-0 z-110 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300 text-sm">
+      <div className={`border border-[#8b5a2b]/30 rounded-4xl w-full max-w-4xl h-150 flex overflow-hidden shadow-2xl transition-all duration-500 ${
         theme === 'dark' ? 'bg-[#1e1a17] text-[#dcd7d4]' : 'bg-[#fdfcfb] text-[#4a3a2e]'
       }`}>
         
@@ -374,8 +374,8 @@ const handleBlockchainSync = async () => {
 
       {/* ══ Modal Konfirmasi Hapus Semua History ═════════════════════════════ */}
       {showClearConfirm && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className={`p-8 rounded-[32px] max-w-sm w-full shadow-2xl text-center border animate-in zoom-in duration-200 ${
+        <div className="fixed inset-0 z-200lex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className={`p-8 rounded-4xl max-w-sm w-full shadow-2xl text-center border animate-in zoom-in duration-200 ${
             theme === 'dark'
               ? 'bg-[#1e1a17] border-[#8b5a2b]/30 text-[#dcd7d4]'
               : 'bg-white border-gray-200 text-[#4a3a2e]'

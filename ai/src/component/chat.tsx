@@ -264,7 +264,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
   const LoadingBubble = () => (
     <div className="flex w-full justify-start animate-in slide-in-from-bottom-2">
       <div className="flex gap-4 max-w-[85%] md:max-w-[80%]">
-        <div className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center shadow-xl bg-[#8b5a2b] text-white">
+        <div className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center shadow-xl bg-[#8b5a2b] text-white">
           <Bot size={20} />
         </div>
         <div className="flex flex-col items-start">
@@ -318,7 +318,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
       <aside className={`relative transition-all duration-300 ease-in-out border-[#8b5a2b]/20 flex flex-col ${
         theme === 'dark' ? 'bg-[#14110f]' : 'bg-[#f7f3f0]'
       } ${isSidebarOpen ? 'w-72 border-r' : 'w-0 border-none overflow-hidden'}`}>
-        <div className="p-5 flex flex-col h-full min-w-[280px]">
+        <div className="p-5 flex flex-col h-full min-w-70">
           <div className="flex items-center gap-2 px-2 mb-10 text-[#8b5a2b]">
             <img className='w-12 h-12 rounded-full object-cover border border-[#8b5a2b]/30 shadow-lg' src={LogoCat} alt="logo" />
             <div className="flex items-center">
@@ -434,7 +434,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2`}>
                   <div className={`flex gap-4 max-w-[85%] md:max-w-[80%] min-w-0 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                    <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center shadow-xl ${
+                    <div className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center shadow-xl ${
                       msg.role === 'assistant' ? 'bg-[#8b5a2b] text-white' : 'bg-[#2b2522] text-[#8b5a2b] border border-[#8b5a2b]/20'
                     }`}>
                       {msg.role === 'assistant' ? <Bot size={20} /> : <User size={20} />}
@@ -453,14 +453,14 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
                             {copiedId === msg.id ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
                           </button>
                         </div>
-                        <div className={`relative p-4 rounded-2xl shadow-xl border leading-relaxed text-[15px] transition-all duration-500 whitespace-pre-wrap break-all md:break-words flex-1 ${
+                        <div className={`relative p-4 rounded-2xl shadow-xl border leading-relaxed text-[15px] transition-all duration-500 whitespace-pre-wrap break-all md:wrap-break-word flex-1 ${
                           msg.role === 'assistant'
                             ? (theme === 'dark' ? 'bg-[#8b5a2b]/5 border-[#8b5a2b]/10 text-[#dcd7d4]' : 'bg-gray-100 border-gray-200 text-[#4a3a2e]')
                             : 'bg-[#8b5a2b] border-[#8b5a2b]/20 text-white'
                         } ${!expandedMessages[msg.id] && msg.content.length > 500 ? 'max-h-40 overflow-hidden relative' : 'h-auto'}`}>
                           {msg.content}
                           {!expandedMessages[msg.id] && msg.content.length > 500 && (
-                            <div className={`absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t pointer-events-none ${
+                            <div className={`absolute bottom-0 left-0 w-full h-12 bg-linear-to-t pointer-events-none ${
                               theme === 'dark' ? 'from-[#1a1614]' : 'from-gray-100'
                             }`} />
                           )}
@@ -484,7 +484,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
         </div>
 
         {(messages.length > 0 || isAiLoading) && (
-          <div className={`px-6 pb-10 pt-4 bg-gradient-to-t z-40 transition-colors ${
+          <div className={`px-6 pb-10 pt-4 bg-linear-to-t-40 transition-colors ${
             theme === 'dark' ? 'from-[#1a1614] via-[#1a1614]' : 'from-[#fdfcfb] via-[#fdfcfb]'
           }`}>
             <div className="max-w-4xl mx-auto relative group">
@@ -510,7 +510,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
                   className="bg-[#8b5a2b] disabled:opacity-40 p-3.5 rounded-2xl text-white hover:scale-105 active:scale-95 transition-all shadow-lg mb-1 mr-1 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
                   {isAiLoading
-                    ? <span className="w-[18px] h-[18px] border-2 border-white/40 border-t-white rounded-full animate-spin block" />
+                    ? <span className="w-4.5 h-4.5rder-2 border-white/40 border-t-white rounded-full animate-spin block" />
                     : <Send size={18} />
                   }
                 </button>
@@ -520,8 +520,8 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
         )}
 
         {showDeleteModal.show && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className={`p-8 rounded-[32px] max-w-sm w-full shadow-2xl text-center border animate-in zoom-in duration-300 ${
+          <div className="fixed inset-0 z-150 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className={`p-8 rounded-4xlx-w-sm w-full shadow-2xl text-center border animate-in zoom-in duration-300 ${
               theme === 'dark' ? 'bg-[#1e1a17] border-[#8b5a2b]/30 text-[#dcd7d4]' : 'bg-white border-gray-200 text-[#4a3a2e]'
             }`}>
               <div className="bg-red-500/10 text-red-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">

@@ -231,7 +231,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
             body: JSON.stringify({ userId: currentUser.id })
           });
         } catch {
-          // Tetap hapus dari state lokal meski DB gagal
+          // Tetap hapus dari state lokal meski DB gagal.
         }
       }
       setChatHistory(prev => prev.filter(chat => chat.id !== showDeleteModal.id));

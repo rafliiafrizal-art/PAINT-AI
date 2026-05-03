@@ -82,7 +82,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// 3. Endpoint AI Paint Specialist
+// 3. Endpoint AI Paint Specialist.
 app.post('/api/ai-paint', async (req, res) => {
     const { message, userId, conversationHistory = [] } = req.body;
 

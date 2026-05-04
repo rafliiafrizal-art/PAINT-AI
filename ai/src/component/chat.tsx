@@ -47,12 +47,15 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Ambil API URL dari environment variable, jika kosong (produksi) gunakan string kosong
+  const API_URL = import.meta.env.VITE_API_URL || "";
 
   useEffect(() => {
     const loadHistoryFromDB = async () => {
       if (!currentUser?.id) return;
       try {
-        const res = await fetch(`/api/chat-sessions/${currentUser.id}`);
+        const res = await fetch(`${API_URL}/api/chat-sessions/${currentUser.id}`);
         const data = await res.json();
         if (data.success && Array.isArray(data.sessions)) {
           setChatHistory(data.sessions);
@@ -62,7 +65,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
       }
     };
     loadHistoryFromDB();
-  }, [currentUser]);
+  }, [currentUser, API_URL]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -101,7 +104,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
     }));
 
     try {
-      const res = await fetch('/api/ai-paint', {
+      const res = await fetch(`${API_URL}/api/ai-paint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -132,7 +135,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
       const errMsg: Message = {
         id: Date.now() + 1,
         role: 'assistant',
-        content: '⚠️ Tidak dapat terhubung ke server. Pastikan backend berjalan di port 5000.'
+        content: '⚠️ Tidak dapat terhubung ke server. Periksa koneksi internet atau status backend.'
       };
       setMessages(prev => [...prev, errMsg]);
     } finally {
@@ -147,7 +150,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
     }
   };
 
-  // ── Helper: simpan sesi aktif ke DB dan state sebelum pindah ──────────
   const saveCurrentSessionIfNeeded = async (
     currentMessages: Message[],
     currentActiveChatId: number | null
@@ -160,8 +162,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
     if (currentUser?.id) {
       try {
         if (currentActiveChatId) {
-          // UPDATE sesi yang sudah ada
-          const res = await fetch(`/api/chat-sessions/${currentActiveChatId}`, {
+          const res = await fetch(`${API_URL}/api/chat-sessions/${currentActiveChatId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -179,8 +180,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
             ));
           }
         } else {
-          // INSERT sesi baru — ID dari database
-          const res = await fetch('/api/chat-sessions', {
+          const res = await fetch(`${API_URL}/api/chat-sessions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -196,17 +196,14 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
               title: data.session.title,
               messages: currentMessages
             };
-            // Masukkan ke history hanya jika belum ada
             setChatHistory(prev => {
               const sudahAda = prev.some(s => s.id === savedSession.id);
               return sudahAda ? prev : [savedSession, ...prev];
             });
-            // Kembalikan ID baru agar activeChatId bisa diupdate
             return savedSession.id;
           }
         }
       } catch {
-        // Gagal simpan ke DB, simpan lokal saja
         if (!currentActiveChatId) {
           const fallback: ChatSession = {
             id: Date.now(),
@@ -218,7 +215,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
         }
       }
     } else {
-      // User tidak login — simpan lokal saja
       if (!currentActiveChatId) {
         const localSession: ChatSession = {
           id: Date.now(),
@@ -229,45 +225,35 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
         return localSession.id;
       }
     }
-
     return currentActiveChatId;
   };
-  // ──────────────────────────────────────────────────────────────────────
 
   const startNewChat = async () => {
-    // Auto-save sesi aktif sebelum mulai baru
     await saveCurrentSessionIfNeeded(messages, activeChatId);
     setMessages([]);
     setActiveChatId(null);
     setInput('');
   };
 
-  // ── PERUBAHAN UTAMA: loadChat → auto-save dulu sebelum pindah ─────────
   const loadChat = async (session: ChatSession) => {
-    // Jangan lakukan apa-apa jika klik sesi yang sama
     if (session.id === activeChatId) return;
-
-    // Auto-save sesi yang sedang aktif sebelum pindah
     await saveCurrentSessionIfNeeded(messages, activeChatId);
-
-    // Pindah ke sesi yang dipilih
     setMessages(session.messages);
     setActiveChatId(session.id);
     setInput('');
   };
-  // ──────────────────────────────────────────────────────────────────────
 
   const confirmDelete = async () => {
     if (showDeleteModal.id) {
       if (currentUser?.id) {
         try {
-          await fetch(`/api/chat-sessions/${showDeleteModal.id}`, {
+          await fetch(`${API_URL}/api/chat-sessions/${showDeleteModal.id}`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: currentUser.id })
           });
         } catch {
-          // Tetap hapus dari state lokal meski DB gagal.
+          // Gagal di DB tetap hapus di lokal
         }
       }
       setChatHistory(prev => prev.filter(chat => chat.id !== showDeleteModal.id));
@@ -282,11 +268,11 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
   const handleClearAllHistory = async () => {
     if (currentUser?.id) {
       try {
-        await fetch(`/api/chat-sessions/clear/${currentUser.id}`, {
+        await fetch(`${API_URL}/api/chat-sessions/clear/${currentUser.id}`, {
           method: 'DELETE'
         });
       } catch {
-        // Tetap hapus dari state lokal meski DB gagal
+        // Gagal di DB tetap hapus di lokal
       }
     }
     setChatHistory([]);
@@ -347,7 +333,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
 
       <style>{scrollbarStyles}</style>
 
-      {/* ── Sidebar ─────────────────────────────────────────────────────── */}
+      {/* ── Sidebar ── */}
       <aside className={`relative transition-all duration-300 ease-in-out border-[#8b5a2b]/20 flex flex-col ${
         theme === 'dark' ? 'bg-[#14110f]' : 'bg-[#f7f3f0]'
       } ${isSidebarOpen ? 'w-72 border-r' : 'w-0 border-none overflow-hidden'}`}>
@@ -409,7 +395,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
         </div>
       </aside>
 
-      {/* ── Main area ─────────────────────────────────────────────────── */}
+      {/* ── Main area ── */}
       <main className={`flex-1 flex flex-col relative transition-colors duration-500 ${
         theme === 'dark' ? 'bg-[#1a1614]' : 'bg-[#fdfcfb]'
       }`}>
@@ -437,7 +423,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
 
         <div className="flex-1 overflow-y-auto custom-scrollbar relative px-4">
           {messages.length === 0 && !isAiLoading ? (
-
             <div className="h-full flex flex-col items-center justify-center animate-in fade-in zoom-in duration-700">
               <h2 className={`text-5xl font-black mb-8 tracking-tighter text-center transition-colors ${
                 theme === 'dark' ? 'text-white' : 'text-[#4a3a2e]'
@@ -467,9 +452,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
                 </div>
               </div>
             </div>
-
           ) : (
-
             <div className="py-8 md:py-12 space-y-10 max-w-5xl mx-auto w-full">
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2`}>
@@ -590,7 +573,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
             </div>
           </div>
         )}
-
       </main>
     </div>
   );

@@ -8,8 +8,20 @@ const Groq = require('groq-sdk').default;
 dotenv.config();
 console.log('GROQ KEY:', process.env.GROQ_API_KEY ? 'ADA ✓' : 'TIDAK ADA ✗');
 
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }  // wajib untuk Neon
+});
+
 const app = express();
-app.use(cors());
+
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 const pool = new Pool({

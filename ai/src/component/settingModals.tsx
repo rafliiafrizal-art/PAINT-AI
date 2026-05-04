@@ -16,7 +16,7 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ 
-  isOpen, onClose, theme, setTheme, chatHistory, onClearAllHistory, userId
+  isOpen, onClose, theme, setTheme, chatHistory, onClearAllHistory
 }) => {
   const [activeTab, setActiveTab] = useState('umum');
   const [helpMessage, setHelpMessage] = useState('');

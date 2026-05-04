@@ -1,4 +1,4 @@
-import { Store } from "lucide-react";
+
 import React, { useState } from 'react';
 import Login from './component/login';
 import SignUp from './component/sign';

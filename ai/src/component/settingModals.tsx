@@ -12,10 +12,11 @@ interface SettingsModalProps {
   chatHistory: any[];
   // ── TAMBAHAN: prop baru untuk hapus semua history ──────────────────
   onClearAllHistory: () => void;
+  userId?: number;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ 
-  isOpen, onClose, theme, setTheme, chatHistory, onClearAllHistory
+  isOpen, onClose, theme, setTheme, chatHistory, onClearAllHistory, userId
 }) => {
   const [activeTab, setActiveTab] = useState('umum');
   const [helpMessage, setHelpMessage] = useState('');

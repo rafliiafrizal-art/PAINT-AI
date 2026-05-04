@@ -147,79 +147,115 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
     }
   };
 
-  const startNewChat = async () => {
-    if (messages.length > 0) {
-      const firstUserMsg = messages.find(m => m.role === 'user')?.content || "Percakapan Baru";
-      const title = firstUserMsg.substring(0, 30);
-      const currentMessages = [...messages];
+  // ── Helper: simpan sesi aktif ke DB dan state sebelum pindah ──────────
+  const saveCurrentSessionIfNeeded = async (
+    currentMessages: Message[],
+    currentActiveChatId: number | null
+  ) => {
+    if (currentMessages.length === 0) return;
 
-      if (currentUser?.id) {
-        try {
-          if (activeChatId) {
-            const res = await fetch(`/api/chat-sessions/${activeChatId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: currentUser.id,
-                title,
-                messages: currentMessages
-              })
-            });
-            const data = await res.json();
-            if (data.success) {
-              setChatHistory(prev => prev.map(s =>
-                s.id === activeChatId
-                  ? { ...s, title, messages: currentMessages }
-                  : s
-              ));
-            }
-          } else {
-            const res = await fetch('/api/chat-sessions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: currentUser.id,
-                title,
-                messages: currentMessages
-              })
-            });
-            const data = await res.json();
-            if (data.success && data.session) {
-              const savedSession: ChatSession = {
-                id: data.session.id,
-                title: data.session.title,
-                messages: currentMessages
-              };
-              setChatHistory(prev => [savedSession, ...prev]);
-            }
+    const firstUserMsg = currentMessages.find(m => m.role === 'user')?.content || 'Percakapan Baru';
+    const title = firstUserMsg.substring(0, 30);
+
+    if (currentUser?.id) {
+      try {
+        if (currentActiveChatId) {
+          // UPDATE sesi yang sudah ada
+          const res = await fetch(`/api/chat-sessions/${currentActiveChatId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              title,
+              messages: currentMessages
+            })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setChatHistory(prev => prev.map(s =>
+              s.id === currentActiveChatId
+                ? { ...s, title, messages: currentMessages }
+                : s
+            ));
           }
-        } catch {
-          const fallbackSession: ChatSession = {
+        } else {
+          // INSERT sesi baru — ID dari database
+          const res = await fetch('/api/chat-sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              title,
+              messages: currentMessages
+            })
+          });
+          const data = await res.json();
+          if (data.success && data.session) {
+            const savedSession: ChatSession = {
+              id: data.session.id,
+              title: data.session.title,
+              messages: currentMessages
+            };
+            // Masukkan ke history hanya jika belum ada
+            setChatHistory(prev => {
+              const sudahAda = prev.some(s => s.id === savedSession.id);
+              return sudahAda ? prev : [savedSession, ...prev];
+            });
+            // Kembalikan ID baru agar activeChatId bisa diupdate
+            return savedSession.id;
+          }
+        }
+      } catch {
+        // Gagal simpan ke DB, simpan lokal saja
+        if (!currentActiveChatId) {
+          const fallback: ChatSession = {
             id: Date.now(),
             title,
             messages: currentMessages
           };
-          setChatHistory(prev => [fallbackSession, ...prev]);
+          setChatHistory(prev => [fallback, ...prev]);
+          return fallback.id;
         }
-      } else {
+      }
+    } else {
+      // User tidak login — simpan lokal saja
+      if (!currentActiveChatId) {
         const localSession: ChatSession = {
           id: Date.now(),
           title,
           messages: currentMessages
         };
         setChatHistory(prev => [localSession, ...prev]);
+        return localSession.id;
       }
     }
 
+    return currentActiveChatId;
+  };
+  // ──────────────────────────────────────────────────────────────────────
+
+  const startNewChat = async () => {
+    // Auto-save sesi aktif sebelum mulai baru
+    await saveCurrentSessionIfNeeded(messages, activeChatId);
     setMessages([]);
     setActiveChatId(null);
     setInput('');
   };
 
-  const loadChat = (session: ChatSession) => {
+  // ── PERUBAHAN UTAMA: loadChat → auto-save dulu sebelum pindah ─────────
+  const loadChat = async (session: ChatSession) => {
+    // Jangan lakukan apa-apa jika klik sesi yang sama
+    if (session.id === activeChatId) return;
+
+    // Auto-save sesi yang sedang aktif sebelum pindah
+    await saveCurrentSessionIfNeeded(messages, activeChatId);
+
+    // Pindah ke sesi yang dipilih
     setMessages(session.messages);
     setActiveChatId(session.id);
+    setInput('');
   };
+  // ──────────────────────────────────────────────────────────────────────
 
   const confirmDelete = async () => {
     if (showDeleteModal.id) {
@@ -243,7 +279,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
     setShowDeleteModal({ show: false, id: null });
   };
 
-  // ── TAMBAHAN FITUR 1: Hapus semua history — UI + database ─────────────
   const handleClearAllHistory = async () => {
     if (currentUser?.id) {
       try {
@@ -254,12 +289,10 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
         // Tetap hapus dari state lokal meski DB gagal
       }
     }
-    // Hapus dari UI
     setChatHistory([]);
     setMessages([]);
     setActiveChatId(null);
   };
-  // ──────────────────────────────────────────────────────────────────────
 
   const LoadingBubble = () => (
     <div className="flex w-full justify-start animate-in slide-in-from-bottom-2">
@@ -334,14 +367,21 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
           <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
             <p className="text-[10px] font-black text-[#8b5a2b]/40 uppercase tracking-[0.2em] px-2 mb-4">History Log</p>
             {chatHistory.map((chat) => (
-              <div key={chat.id} onClick={() => loadChat(chat)} className={`group flex items-center justify-between gap-2 p-3 rounded-xl cursor-pointer transition-all border ${
-                activeChatId === chat.id ? 'bg-[#8b5a2b]/20 border-[#8b5a2b]/40' : 'border-transparent hover:bg-[#8b5a2b]/10'
-              }`}>
+              <div
+                key={chat.id}
+                onClick={() => loadChat(chat)}
+                className={`group flex items-center justify-between gap-2 p-3 rounded-xl cursor-pointer transition-all border ${
+                  activeChatId === chat.id ? 'bg-[#8b5a2b]/20 border-[#8b5a2b]/40' : 'border-transparent hover:bg-[#8b5a2b]/10'
+                }`}
+              >
                 <div className="flex items-center gap-3 truncate text-xs">
                   <MessageSquare size={14} className={activeChatId === chat.id ? 'text-[#8b5a2b]' : 'text-gray-500'} />
                   <span className="truncate font-medium">{chat.title}</span>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); setShowDeleteModal({ show: true, id: chat.id }); }} className="opacity-0 group-hover:opacity-100 p-1.5 hover:text-red-500 transition-all">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowDeleteModal({ show: true, id: chat.id }); }}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 hover:text-red-500 transition-all"
+                >
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -357,7 +397,6 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
             </button>
           </div>
 
-          {/* ── TAMBAHAN: prop onClearAllHistory diteruskan ke SettingsModal ── */}
           <SettingsModal
             isOpen={isSettingOpen}
             onClose={() => setIsSettingOpen(false)}
@@ -365,6 +404,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
             setTheme={setTheme}
             chatHistory={chatHistory}
             onClearAllHistory={handleClearAllHistory}
+            userId={currentUser?.id}
           />
         </div>
       </aside>
@@ -484,7 +524,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
         </div>
 
         {(messages.length > 0 || isAiLoading) && (
-          <div className={`px-6 pb-10 pt-4 bg-linear-to-t-40 transition-colors ${
+          <div className={`px-6 pb-10 pt-4 bg-linear-to-t z-40 transition-colors ${
             theme === 'dark' ? 'from-[#1a1614] via-[#1a1614]' : 'from-[#fdfcfb] via-[#fdfcfb]'
           }`}>
             <div className="max-w-4xl mx-auto relative group">
@@ -510,7 +550,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
                   className="bg-[#8b5a2b] disabled:opacity-40 p-3.5 rounded-2xl text-white hover:scale-105 active:scale-95 transition-all shadow-lg mb-1 mr-1 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
                   {isAiLoading
-                    ? <span className="w-4.5 h-4.5rder-2 border-white/40 border-t-white rounded-full animate-spin block" />
+                    ? <span className="w-4.5 h-4.5 border-2 border-white/40 border-t-white rounded-full animate-spin block" />
                     : <Send size={18} />
                   }
                 </button>
@@ -521,7 +561,7 @@ const AiPaintSpecialist: React.FC<AiPaintProps> = ({ currentUser }) => {
 
         {showDeleteModal.show && (
           <div className="fixed inset-0 z-150 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className={`p-8 rounded-4xlx-w-sm w-full shadow-2xl text-center border animate-in zoom-in duration-300 ${
+            <div className={`p-8 rounded-4xl max-w-sm w-full shadow-2xl text-center border animate-in zoom-in duration-300 ${
               theme === 'dark' ? 'bg-[#1e1a17] border-[#8b5a2b]/30 text-[#dcd7d4]' : 'bg-white border-gray-200 text-[#4a3a2e]'
             }`}>
               <div className="bg-red-500/10 text-red-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">

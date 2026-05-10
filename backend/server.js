@@ -12,13 +12,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const pool = new Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT),
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME
-});
+const pool = process.env.DATABASE_URL
+    ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+    : new Pool({
+        user: process.env.DB_USER,
+        host: process.env.DB_HOST,
+        port: Number(process.env.DB_PORT),
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME
+    });
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -106,14 +108,6 @@ app.post('/api/ai-paint', async (req, res) => {
         });
 
         const aiResponse = completion.choices[0].message.content;
-
-        if (userId) {
-            await pool.query(
-                `INSERT INTO chat_history (user_id, user_message, ai_response)
-                 VALUES ($1, $2, $3)`,
-                [userId, message, aiResponse]
-            );
-        }
 
         res.json({ success: true, response: aiResponse });
 
@@ -276,7 +270,11 @@ app.delete('/api/chat-sessions/clear/:userId', async (req, res) => {
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PORT_SERVER = process.env.PORT || 5000;
-app.listen(PORT_SERVER, () => {
-    console.log(`Server R&D berjalan di http://localhost:${PORT_SERVER}`);
-});
+if (require.main === module) {
+    const PORT_SERVER = process.env.PORT || 5000;
+    app.listen(PORT_SERVER, () => {
+        console.log(`Server R&D berjalan di http://localhost:${PORT_SERVER}`);
+    });
+}
+
+module.exports = app;

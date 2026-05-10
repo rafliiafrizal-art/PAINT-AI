@@ -34,7 +34,12 @@ const pool = process.env.DATABASE_URL
         database: process.env.DB_NAME
     });
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+let groq = null;
+try {
+    groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+} catch (e) {
+    console.warn('Groq init failed — GROQ_API_KEY mungkin belum diset:', e.message);
+}
 
 const PAINT_SYSTEM_PROMPT = `Kamu adalah AI Paint Specialist — konsultan cat profesional yang ahli dalam:
 - Rekomendasi warna cat interior dan eksterior
@@ -102,6 +107,10 @@ app.post('/api/ai-paint', async (req, res) => {
 
     if (!message || message.trim() === '') {
         return res.status(400).json({ message: "Pesan tidak boleh kosong" });
+    }
+
+    if (!groq) {
+        return res.status(500).json({ message: "GROQ_API_KEY belum dikonfigurasi di server" });
     }
 
     try {

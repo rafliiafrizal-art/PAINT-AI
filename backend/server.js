@@ -8,10 +8,19 @@ const Groq = require('groq-sdk').default;
 dotenv.config();
 console.log('GROQ KEY:', process.env.GROQ_API_KEY ? 'ADA ✓' : 'TIDAK ADA ✗');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }  // wajib untuk Neon
-});
+// Gunakan DATABASE_URL jika ada, fallback ke config individual
+const pool = process.env.DATABASE_URL
+    ? new Pool({ 
+        connectionString: process.env.DATABASE_URL, 
+        ssl: { rejectUnauthorized: false }  // wajib untuk Neon
+      })
+    : new Pool({
+        user: process.env.DB_USER,
+        host: process.env.DB_HOST,
+        port: Number(process.env.DB_PORT),
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME
+    });
 
 const app = express();
 
@@ -23,16 +32,6 @@ app.use(cors({
 }));
 
 app.use(express.json());
-
-const pool = process.env.DATABASE_URL
-    ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
-    : new Pool({
-        user: process.env.DB_USER,
-        host: process.env.DB_HOST,
-        port: Number(process.env.DB_PORT),
-        password: process.env.DB_PASSWORD,
-        database: process.env.DB_NAME
-    });
 
 let groq = null;
 try {

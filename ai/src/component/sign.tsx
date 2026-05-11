@@ -9,6 +9,8 @@ const SignUp: React.FC<SignUpProps> = ({ onSwitch, onSuccess }) => {
   const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const [error, setError] = useState('');
 
+  const API_URL = import.meta.env.VITE_API_URL || '';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -18,7 +20,7 @@ const SignUp: React.FC<SignUpProps> = ({ onSwitch, onSuccess }) => {
     }
 
     try {
-      const res = await fetch('/api/signup', {
+      const res = await fetch(`${API_URL}/api/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
